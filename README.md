@@ -62,24 +62,22 @@ Each skill gets a score 0–100 based on:
 
 Most skill triggering failures come down to one thing: **the description doesn't tell the agent when to fire.**
 
-Skill Compass scans your skills, finds description problems, and fixes them — so the agent's built-in matching works correctly without any extra routing layer.
+The workflow is two steps:
 
-### The fix is simple
+**Step 1 — Audit.** Run the script, get a report telling you which skills have problems and what kind.
 
-Write descriptions like this:
+**Step 2 — Fix.** Some fixes are automatic (`--fix` flag), others need human judgment:
 
-```yaml
-# ❌ Won't trigger (~37% activation rate)
-description: Helps with weather information.
+| Fix type | Who does it | Example |
+|----------|-------------|--------|
+| YAML syntax errors | Script auto-fixes | Missing quotes around colons |
+| Description too long | Script auto-fixes | Truncates to token budget |
+| Missing trigger condition | **You rewrite it** | `"Helps with weather"` → `"Use when user asks about weather, temperature, or forecasts"` |
+| Weak/passive language | **You rewrite it** | `"Can assist with..."` → `"ALWAYS invoke when..."` |
 
-# ✅ Triggers reliably (~100% activation rate)
-description: Use when the user asks about weather, temperature, or forecasts.
-  Do not attempt weather lookups without this skill.
-```
+The key insight: description quality is the #1 factor in trigger reliability. Directive descriptions ("Use when...") achieve ~100% activation, while passive ones ("Helps with...") only ~37%.
 
-Pattern: **[When to trigger] + [What it does] + [Search keywords]**
-
-For the full diagnostic workflow, see [`SKILL.md`](SKILL.md). For documented failure patterns with real case studies, see [`references/failure-patterns.md`](references/failure-patterns.md).
+For the full diagnostic workflow, see [`SKILL.md`](SKILL.md). For documented failure patterns with real cases, see [`references/failure-patterns.md`](references/failure-patterns.md).
 
 ## Files
 
