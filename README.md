@@ -25,6 +25,9 @@ python3 scripts/audit_skills.py --skills-dir ~/.claude/skills
 # Auto-fix common issues (YAML colons, missing triggers)
 python3 scripts/audit_skills.py --fix
 
+# Generate an AI-ready prompt to rewrite bad descriptions
+python3 scripts/audit_skills.py --suggest
+
 # JSON output for CI/CD
 python3 scripts/audit_skills.py --json
 ```
@@ -72,8 +75,8 @@ The workflow is two steps:
 |----------|-------------|--------|
 | YAML syntax errors | Script auto-fixes | Missing quotes around colons |
 | Description too long | Script auto-fixes | Truncates to token budget |
-| Missing trigger condition | **You rewrite it** | `"Helps with weather"` → `"Use when user asks about weather, temperature, or forecasts"` |
-| Weak/passive language | **You rewrite it** | `"Can assist with..."` → `"ALWAYS invoke when..."` |
+| Missing trigger condition | `--suggest` generates a prompt | `"Helps with weather"` → `"Use when user asks about weather, temperature, or forecasts"` |
+| Weak/passive language | `--suggest` generates a prompt | `"Can assist with..."` → `"ALWAYS invoke when..."` |
 
 The key insight: description quality is the #1 factor in trigger reliability. Directive descriptions ("Use when...") achieve ~100% activation, while passive ones ("Helps with...") only ~37%.
 

@@ -390,6 +390,79 @@ def print_report(report: Dict, json_output: bool = False):
     print(f"{'='*70}\n")
 
 
+def generate_suggestion_prompt(report: Dict) -> str:
+    """Generate a ready-to-use prompt for an AI agent to rewrite bad descriptions."""
+    failing = [s for s in report['skills'] if s.get('score', 100) < 70
+               and not s.get('error')]
+
+    if not failing:
+        return "✅ All skills pass — no description rewrites needed!"
+
+    lines = [
+        "You are a skill description optimizer. Your job is to rewrite SKILL.md",
+        "frontmatter descriptions so they trigger reliably in AI agents.",
+        "",
+        "## Rules",
+        "1. Start with \"Use when...\" or \"ALWAYS invoke when...\"",
+        "2. Include specific trigger keywords the user might say",
+        "3. Add \"Do NOT use for...\" to prevent false triggers when relevant",
+        "4. Keep the description under 350 characters",
+        "5. Do NOT change the skill name — only the description",
+        "",
+        "## Skills to Fix",
+        "",
+    ]
+
+    for i, skill in enumerate(failing, 1):
+        name = skill.get('name', 'unknown')
+        path = skill.get('path', '')
+        score = skill.get('score', 0)
+        issues = skill.get('issues', [])
+        suggestions = skill.get('suggestions', [])
+
+        # Try to read current description from file
+        current_desc = ""
+        try:
+            content = Path(path).read_text(encoding='utf-8')
+            fm, _ = parse_frontmatter(content)
+            if fm and fm.get('description'):
+                current_desc = fm['description']
+        except Exception:
+            pass
+
+        lines.append(f"### {i}. {name} (Score: {score}/100)")
+        lines.append(f"**File:** `{path}`")
+        if current_desc:
+            lines.append(f"**Current description:** {current_desc}")
+        if issues:
+            lines.append(f"**Issues:** {'; '.join(issues)}")
+        if suggestions:
+            lines.append(f"**Hints:** {'; '.join(suggestions)}")
+        lines.append("")
+
+    lines.extend([
+        "## Output Format",
+        "",
+        "For each skill, output the new `description:` line in YAML format.",
+        "Example:",
+        "",
+        "```yaml",
+        "# multi-search-engine",
+        "description: \"Use when the user asks to search the web, look something up, or find information online. Supports 16 search engines including Google, Bing, DuckDuckGo. Do NOT use for simple factual lookups the model already knows.\"",
+        "```",
+        "",
+        "After generating all rewrites, apply them to the respective SKILL.md files.",
+    ])
+
+    return "\n".join(lines)
+
+
+def print_suggestion_prompt(report: Dict):
+    """Print the AI-ready suggestion prompt."""
+    prompt = generate_suggestion_prompt(report)
+    print(prompt)
+
+
 def main():
     parser = argparse.ArgumentParser(description='Skill Compass - Audit skill triggering issues')
     parser.add_argument('--skills-dir', default=None,
@@ -398,6 +471,8 @@ def main():
                         help='Output JSON report')
     parser.add_argument('--fix', action='store_true',
                         help='Auto-fix common issues (YAML colons, etc.)')
+    parser.add_argument('--suggest', action='store_true',
+                        help='Generate an AI-ready prompt to rewrite bad descriptions')
     
     args = parser.parse_args()
     
@@ -409,7 +484,11 @@ def main():
         skills_dir = next((d for d in DEFAULT_SKILL_DIRS if os.path.isdir(d)), DEFAULT_SKILL_DIRS[0])
     
     report = audit_skills(skills_dir, auto_fix=args.fix)
-    print_report(report, json_output=args.json)
+    
+    if args.suggest:
+        print_suggestion_prompt(report)
+    else:
+        print_report(report, json_output=args.json)
 
 
 if __name__ == '__main__':
