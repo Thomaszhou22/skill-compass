@@ -1,9 +1,9 @@
 ---
-name: skill-sentinel
+name: skill-compass
 description: Diagnose, fix, and prevent agent skill trigger failures. Use when a skill doesn't activate, when skills trigger incorrectly, when troubleshooting "skill not working" issues, when auditing skill descriptions for quality, when optimizing trigger accuracy, or when asked "why didn't my skill fire?". Also use proactively after installing new skills or when agent behavior seems to ignore available skills. Covers description optimization, YAML frontmatter validation, token budget analysis, conflict detection, and auto-remediation.
 ---
 
-# Skill Sentinel
+# Skill Compass
 
 Diagnose and fix skill triggering failures across AI agent ecosystems (OpenClaw, Claude Code, and compatible agentskills.io platforms).
 

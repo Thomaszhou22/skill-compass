@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Skill Sentinel - Audit Script
+Skill Compass - Audit Script
 Scans skill directories for triggering issues and outputs a diagnostic report.
 """
 
@@ -391,7 +391,7 @@ def print_report(report: Dict, json_output: bool = False):
 
 
 def main():
-    parser = argparse.ArgumentParser(description='Skill Sentinel - Audit skill triggering issues')
+    parser = argparse.ArgumentParser(description='Skill Compass - Audit skill triggering issues')
     parser.add_argument('--skills-dir', default=None,
                         help='Path to skills directory (auto-detected if omitted)')
     parser.add_argument('--json', action='store_true',

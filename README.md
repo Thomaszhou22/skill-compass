@@ -1,8 +1,8 @@
-# 🛡️ Skill Sentinel
+# 🛡️ Skill Compass
 
 > **Diagnose, fix, and prevent AI agent skill trigger failures — at the source.**
 
-65% of agent skills fail to trigger because of preventable description issues. Skill Sentinel finds them and fixes them.
+65% of agent skills fail to trigger because of preventable description issues. Skill Compass finds them and fixes them.
 
 ---
 
@@ -41,13 +41,13 @@ After analyzing **GitHub issues, Reddit posts, community forums, and a 650-trial
 
 ## How It Works
 
-Skill Sentinel operates on one core insight:
+Skill Compass operates on one core insight:
 
 > **Agent routing IS description matching. Fix the description, fix the routing.**
 
 Most competing skills try to add a "routing layer" on top of the agent — intercepting, re-ranking, or force-injecting skills at runtime. That's treating the symptom.
 
-Skill Sentinel treats the disease: **it makes every skill's description so good that the agent's native matching never misses.**
+Skill Compass treats the disease: **it makes every skill's description so good that the agent's native matching never misses.**
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
@@ -171,7 +171,7 @@ python3 scripts/audit_skills.py --fix
 
 ## How It Differs From Competitors
 
-| Feature | Skill Sentinel | skill-auto-use | skill-auto-router | skill-evaluator | skill-search-optimizer |
+| Feature | Skill Compass | skill-auto-use | skill-auto-router | skill-evaluator | skill-search-optimizer |
 |---------|:--------------:|:--------------:|:-----------------:|:---------------:|:---------------------:|
 | **Approach** | Fix at source | Runtime injection | Runtime routing | Pre-publish QA | SEO for ClawHub |
 | **Solves "won't trigger"** | ✅ Root cause | ⚡ Symptom | ⚡ Symptom | ❌ Different goal | ❌ Different goal |
@@ -185,7 +185,7 @@ python3 scripts/audit_skills.py --fix
 
 ```
 Competitors: "The agent picked the wrong skill? Let me correct its choice."
-Skill Sentinel: "WHY did it pick wrong? Because the description is bad. Let me fix the description."
+Skill Compass: "WHY did it pick wrong? Because the description is bad. Let me fix the description."
 
 Fix the root cause → the symptom disappears → no interceptor needed.
 ```
@@ -195,7 +195,7 @@ Fix the root cause → the symptom disappears → no interceptor needed.
 ## What's Inside
 
 ```
-skill-sentinel/
+skill-compass/
 ├── SKILL.md                          # Main skill with triage workflow
 ├── scripts/
 │   └── audit_skills.py               # Automated diagnostic tool
@@ -257,8 +257,8 @@ clawhub install skill-trigger-doctor
 ### From GitHub
 
 ```bash
-git clone https://github.com/Thomaszhou22/skill-sentinel.git
-cp -r skill-sentinel ~/.openclaw/skills/
+git clone https://github.com/Thomaszhou22/skill-compass.git
+cp -r skill-compass ~/.openclaw/skills/
 ```
 
 ### Compatibility
@@ -279,7 +279,7 @@ MIT-0 — Free to use, modify, and distribute. No attribution required.
 
 Found a new failure pattern? Add it to `references/failure-patterns.md`.
 
-Have a skill that won't trigger? Run the audit, then [open an issue](https://github.com/Thomaszhou22/skill-sentinel/issues) if the audit doesn't catch it.
+Have a skill that won't trigger? Run the audit, then [open an issue](https://github.com/Thomaszhou22/skill-compass/issues) if the audit doesn't catch it.
 
 ---
 
