@@ -1,5 +1,7 @@
 # 🧭 Skill Compass
 
+**English** | **[中文](README.zh-CN.md)**
+
 Audit, fix, and optimize agent skill descriptions so they trigger reliably. Works with OpenClaw, Claude Code, Cursor, and any agentskills.io-compatible platform.
 
 **The problem:** 65% of skills never trigger because their descriptions don't tell the agent *when* to fire. Skill Compass finds these and fixes them — automatically where possible, AI-assisted where not.

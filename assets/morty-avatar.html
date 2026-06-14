@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  width: 500px;
+  height: 500px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #1a1a2e;
+}
+.avatar {
+  width: 460px;
+  height: 460px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #2a5cb8 0%, #1a3a7a 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  position: relative;
+}
+svg { width: 380px; height: 380px; }
+</style>
+</head>
+<body>
+<div class="avatar">
+<svg viewBox="0 0 380 380" xmlns="http://www.w3.org/2000/svg">
+  <!-- Hair (back) -->
+  <path d="M 110 90 Q 190 50 270 95 Q 295 110 290 160 L 285 180 Q 280 150 270 140 L 260 130 Q 250 125 240 128 L 220 125 Q 190 120 160 128 L 140 130 Q 125 135 115 150 L 110 160 Q 100 130 110 90 Z" fill="#8B6F47"/>
+
+  <!-- Face -->
+  <ellipse cx="190" cy="165" rx="75" ry="85" fill="#F4D5A0"/>
+
+  <!-- Hair (top) -->
+  <path d="M 115 100 Q 140 75 190 70 Q 240 75 265 105 Q 270 120 260 135 Q 255 125 245 122 L 235 120 Q 220 115 200 118 L 180 116 Q 160 118 145 125 Q 130 130 120 145 Q 115 130 115 100 Z" fill="#9B7B52"/>
+
+  <!-- Hair tufts -->
+  <path d="M 160 88 Q 175 78 195 82 Q 200 85 190 90 Q 175 92 160 95 Z" fill="#8B6F47"/>
+  <path d="M 200 85 Q 220 80 235 88 Q 240 95 230 95 Q 215 93 200 92 Z" fill="#8B6F47"/>
+
+  <!-- Left ear -->
+  <ellipse cx="116" cy="170" rx="10" ry="15" fill="#F4D5A0"/>
+  <ellipse cx="116" cy="172" rx="5" ry="8" fill="#E0BC85"/>
+
+  <!-- Right ear -->
+  <ellipse cx="264" cy="170" rx="10" ry="15" fill="#F4D5A0"/>
+  <ellipse cx="264" cy="172" rx="5" ry="8" fill="#E0BC85"/>
+
+  <!-- Left eyebrow (worried, raised) -->
+  <path d="M 140 140 Q 160 132 178 142" stroke="#5C4A30" stroke-width="4" fill="none" stroke-linecap="round"/>
+
+  <!-- Right eyebrow (worried, raised) -->
+  <path d="M 202 142 Q 220 132 240 140" stroke="#5C4A30" stroke-width="4" fill="none" stroke-linecap="round"/>
+
+  <!-- Left eye (wide, nervous) -->
+  <ellipse cx="160" cy="160" rx="16" ry="20" fill="white" stroke="#333" stroke-width="2"/>
+  <circle cx="162" cy="163" r="7" fill="#3a3a3a"/>
+  <circle cx="160" cy="155" r="3" fill="white"/>
+
+  <!-- Right eye (wide, nervous) -->
+  <ellipse cx="220" cy="160" rx="16" ry="20" fill="white" stroke="#333" stroke-width="2"/>
+  <circle cx="222" cy="163" r="7" fill="#3a3a3a"/>
+  <circle cx="220" cy="155" r="3" fill="white"/>
+
+  <!-- Nose -->
+  <path d="M 188 185 Q 190 200 193 205 Q 196 208 190 210 Q 184 208 186 205 Q 187 198 188 185" fill="#E0BC85"/>
+
+  <!-- Mouth (nervous, slightly open, classic Morty) -->
+  <ellipse cx="190" cy="225" rx="18" ry="10" fill="#8B4513"/>
+  <ellipse cx="190" cy="223" rx="14" ry="6" fill="#A0522D"/>
+  <!-- Teeth hint -->
+  <rect x="180" y="218" width="20" height="3" fill="#F0E6D3" rx="1"/>
+
+  <!-- Neck -->
+  <rect x="170" y="245" width="40" height="30" fill="#F4D5A0"/>
+
+  <!-- Yellow shirt -->
+  <path d="M 120 280 Q 190 265 260 280 L 280 380 L 100 380 Z" fill="#F5C518"/>
+  <path d="M 165 275 Q 190 268 215 275 L 215 295 Q 190 288 165 295 Z" fill="#E0B015"/>
+
+  <!-- Sweat drop (classic Morty nervous) -->
+  <path d="M 255 125 Q 258 135 255 142 Q 252 135 255 125" fill="#7EC8E3" opacity="0.8"/>
+  <ellipse cx="255" cy="130" rx="3" ry="6" fill="#7EC8E3" opacity="0.7"/>
+</svg>
+</div>
+</body>
+</html>
