@@ -390,6 +390,79 @@ def print_report(report: Dict, json_output: bool = False):
     print(f"{'='*70}\n")
 
 
+def print_init_guide(report: Dict):
+    """Print a step-by-step onboarding guide for first-time users."""
+    s = report['summary']
+    failing = [sk for sk in report['skills'] if sk.get('score', 100) < 70 and not sk.get('error')]
+    
+    print("=" * 70)
+    print("🧭  SKILL COMPASS — SETUP GUIDE")
+    print("=" * 70)
+    print()
+    print(f"📊 Scanned {report['total_skills']} skills in: {report['skills_dir']}")
+    print(f"   ✅ {s.get('passing', 0)} passing  |  ⚠️  {s.get('failing', 0)} need work  |  🔴 {s.get('critical', 0)} critical")
+    print(f"   Average score: {s.get('avg_score', 0):.0f}/100")
+    print()
+    
+    if not failing:
+        print("🎉 All your skills are healthy! Nothing to do.")
+        print()
+        print("Next steps:")
+        print("  • Re-run anytime with: python3 audit_skills.py")
+        print("  • Add to CI: python3 audit_skills.py --json")
+        return
+    
+    print("─" * 70)
+    print("3 STEPS TO FIX YOUR SKILLS")
+    print("─" * 70)
+    print()
+    print("Step 1/3: Auto-fix YAML syntax issues")
+    print("  $ python3 scripts/audit_skills.py --fix")
+    print()
+    print("Step 2/3: Generate an AI prompt to rewrite bad descriptions")
+    print("  $ python3 scripts/audit_skills.py --suggest")
+    print()
+    print("Step 3/3: Paste the output to your AI agent (Claude, GPT, etc.)")
+    print("  The agent will rewrite each description and apply the fixes.")
+    print("  Then re-run the audit to verify your scores improved:")
+    print("  $ python3 scripts/audit_skills.py")
+    print()
+    
+    print("─" * 70)
+    print(f"SKILLS THAT NEED ATTENTION ({len(failing)})")
+    print("─" * 70)
+    for sk in sorted(failing, key=lambda x: x.get('score', 0)):
+        score = sk.get('score', 0)
+        name = sk.get('name', 'unknown')
+        issues = sk.get('issues', [])
+        issue_str = '; '.join(issues) if issues else 'see suggestions'
+        print(f"  ⚠️  {name} ({score}/100) — {issue_str}")
+    print()
+    print("=" * 70)
+    print()
+    
+    # Auto-run step 1
+    print("▶  Running Step 1 (auto-fix YAML)...\n")
+    # Re-run with fix
+    fixed_report = audit_skills(report['skills_dir'], auto_fix=True)
+    yaml_fixed = sum(1 for sk in fixed_report['skills'] if sk.get('fixed'))
+    if yaml_fixed:
+        print(f"   🔧 Fixed {yaml_fixed} YAML issue(s) automatically.\n")
+    else:
+        print("   ✅ No YAML issues found — nothing to auto-fix.\n")
+    
+    # Show step 2 preview
+    print("▶  Step 2 preview — here's your AI prompt:\n")
+    print("─" * 70)
+    print(generate_suggestion_prompt(fixed_report))
+    print("─" * 70)
+    print()
+    print("📋 Copy the prompt above and paste it to your AI agent.")
+    print("   The agent will rewrite the descriptions and save the files.")
+    print("   Then run `python3 scripts/audit_skills.py` to verify.")
+    print()
+
+
 def generate_suggestion_prompt(report: Dict) -> str:
     """Generate a ready-to-use prompt for an AI agent to rewrite bad descriptions."""
     failing = [s for s in report['skills'] if s.get('score', 100) < 70
@@ -473,6 +546,8 @@ def main():
                         help='Auto-fix common issues (YAML colons, etc.)')
     parser.add_argument('--suggest', action='store_true',
                         help='Generate an AI-ready prompt to rewrite bad descriptions')
+    parser.add_argument('--init', action='store_true',
+                        help='First-time setup: audit + auto-fix + suggest in one pass')
     
     args = parser.parse_args()
     
@@ -483,11 +558,14 @@ def main():
         # Auto-detect: use first existing default dir
         skills_dir = next((d for d in DEFAULT_SKILL_DIRS if os.path.isdir(d)), DEFAULT_SKILL_DIRS[0])
     
-    report = audit_skills(skills_dir, auto_fix=args.fix)
-    
-    if args.suggest:
+    if args.init:
+        report = audit_skills(skills_dir, auto_fix=False)
+        print_init_guide(report)
+    elif args.suggest:
+        report = audit_skills(skills_dir, auto_fix=False)
         print_suggestion_prompt(report)
     else:
+        report = audit_skills(skills_dir, auto_fix=args.fix)
         print_report(report, json_output=args.json)
 
 

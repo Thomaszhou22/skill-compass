@@ -7,6 +7,16 @@ description: Diagnose, fix, and prevent agent skill trigger failures. Use when a
 
 Diagnose and fix skill triggering failures across AI agent ecosystems (OpenClaw, Claude Code, and compatible agentskills.io platforms).
 
+## First Run (Onboarding)
+
+When this skill is first installed or when the user says "check my skills" / "audit skills":
+
+```bash
+python3 scripts/audit_skills.py --init
+```
+
+This runs the full setup: audit → auto-fix YAML → generate AI prompt. Take the suggest prompt output, rewrite each failing description following the rules below, then re-audit to verify.
+
 ## Core Problem
 
 65% of skills fail to trigger due to preventable description issues (GitHub #43410). This skill systematically detects and fixes those issues.
