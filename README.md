@@ -17,38 +17,49 @@ cp -r skill-compass ~/.openclaw/skills/
 
 Requires Python 3.8+. No other dependencies.
 
-## Quick Start
+## Commands
 
 ```bash
-# Step 1: Audit — find broken skills
+# ── Core Workflow ──
+
+# One-command setup: audit + auto-fix + AI prompt (recommended for first run)
+python3 scripts/audit_skills.py --init
+
+# Audit only — scan and score all skills
 python3 scripts/audit_skills.py
 
-# Step 2: Auto-fix YAML syntax issues (auto-creates backup)
+# Auto-fix YAML syntax errors (creates backup automatically)
 python3 scripts/audit_skills.py --fix
 
-# Step 3: Generate AI prompt to rewrite bad descriptions
+# Generate AI prompt to rewrite bad descriptions
 python3 scripts/audit_skills.py --suggest
 
 # JSON output for CI/CD pipelines
 python3 scripts/audit_skills.py --json
 
-# Backup all SKILL.md files manually
+# ── Backup & Rollback ──
+
+# Snapshot all SKILL.md files
 python3 scripts/audit_skills.py --backup
 
 # List available backups
 python3 scripts/audit_skills.py --list-backups
 
-# Rollback to latest backup (or specify --backup-id)
+# Rollback to latest backup
 python3 scripts/audit_skills.py --rollback
+
+# Rollback to a specific backup
 python3 scripts/audit_skills.py --rollback --backup-id 20260614-151204
 
-# Generate GitHub issue drafts to share fixes with upstream authors
+# ── Upstream Feedback ──
+
+# Generate GitHub issue drafts to share fixes with skill authors
 python3 scripts/audit_skills.py --feedback
 ```
 
 ## The Self-Healing Loop
 
-The three steps above form a closed loop that an agent can run by itself — no human editing required:
+`--init` runs the full setup in one pass — audit, auto-fix, and AI prompt generation:
 
 ```
   ┌──────────────┐     ┌──────────────┐     ┌──────────────────┐
@@ -63,36 +74,40 @@ The three steps above form a closed loop that an agent can run by itself — no 
 
 | Step | Command | What happens | Needs human? |
 |------|---------|-------------|--------------|
-| **Audit** | `audit_skills.py` | Scans all SKILL.md files, scores each 0–100 | No |
-| **Auto-fix** | `audit_skills.py --fix` | Fixes YAML syntax errors in-place | No |
-| **Suggest** | `audit_skills.py --suggest` | Outputs a prompt with rules + context for each failing skill | No — paste it to any AI agent |
-| **Rewrite** | Agent reads the suggest prompt | Rewrites descriptions following the rules | No — agent does it |
-| **Verify** | `audit_skills.py` again | Confirm scores improved | No |
-| **Backup** | `audit_skills.py --backup` | Snapshot all SKILL.md files | No |
-| **Rollback** | `audit_skills.py --rollback` | Restore from backup if AI broke something | No |
-| **List backups** | `audit_skills.py --list-backups` | Show all available snapshots | No |
+| **Audit** | `--init` or bare | Scans all SKILL.md files, scores each 0–100 | No |
+| **Auto-fix** | `--fix` or `--init` | Fixes YAML syntax errors, creates backup first | No |
+| **Suggest** | `--suggest` or `--init` | Outputs a prompt with rules + context for each failing skill | No |
+| **Rewrite** | Agent reads the prompt | Rewrites descriptions following the rules | No — agent does it |
+| **Verify** | bare | Re-run audit to confirm scores improved | No |
 
-### What a full run looks like
+### What `--init` looks like
 
 ```
-🧭  SKILL COMPASS — AUDIT REPORT
+🧭  SKILL COMPASS — SETUP GUIDE
 
-📂 Directory: ~/.openclaw/skills
-📊 Total skills: 18
-⚠️  Issues found: 11
+📊 Scanned 18 skills in: ~/.openclaw/skills
+   ✅ 15 passing  |  ⚠️  3 need work  |  🔴 0 critical
+   Average score: 82/100
 
-📈 Score Summary:
-   Average score: 81/100
-   ✅ Passing (≥70): 12
-   ⚠️  Needs work (<70): 6
-   🔴 Critical (<30): 0
+3 STEPS TO FIX YOUR SKILLS
 
-⚠️  multi-search-engine — Score: 50/100
-   • NO_TRIGGER: Missing trigger condition
-   • WEAK_LANG: Uses passive language instead of directive
-   💡 Add trigger phrases: "Use when...", "Invoke when..."
+Step 1/3: Auto-fix YAML syntax issues
+Step 2/3: Generate an AI prompt to rewrite bad descriptions
+Step 3/3: Paste the output to your AI agent
 
-✅ powerpoint-pptx — Score: 100/100
+SKILLS THAT NEED ATTENTION (3)
+  ⚠️  multi-search-engine (20/100) — NO_TRIGGER; SHORT
+  ⚠️  github (20/100) — NO_TRIGGER; SHORT
+  ⚠️  onboarding (20/100) — NO_TRIGGER; SHORT
+
+▶  Running Step 1 (auto-fix YAML)...
+   💾 Backup saved: ~/.skill-compass-backups/20260614-151204
+
+▶  Step 2 preview — here's your AI prompt:
+   (full prompt with rules + per-skill context)
+
+⏮️  If something goes wrong, rollback with:
+   python3 scripts/audit_skills.py --rollback
 ```
 
 ### What `--suggest` generates
@@ -111,7 +126,6 @@ frontmatter descriptions so they trigger reliably in AI agents.
 ## Skills to Fix
 
 ### 1. multi-search-engine (Score: 50/100)
-**File:** `~/.openclaw/skills/multi-search-engine/SKILL.md`
 **Current description:** Multi search engine integration with 16 engines...
 **Issues:** NO_TRIGGER; WEAK_LANG
 **Hints:** Add trigger phrases; Replace passive language
@@ -121,7 +135,72 @@ frontmatter descriptions so they trigger reliably in AI agents.
 After generating all rewrites, apply them to the respective SKILL.md files.
 ```
 
-Paste this to any AI agent (Claude, GPT, Gemini, etc.) and it rewrites every bad description following the rules. Re-run the audit to verify improvements.
+Paste this to any AI agent (Claude, GPT, Gemini, etc.) and it rewrites every bad description. Re-run the audit to verify.
+
+## Backup & Rollback
+
+Every `--fix` and `--init` automatically creates a backup before modifying files. You can also manage backups manually:
+
+| Command | What it does |
+|---------|-------------|
+| `--backup` | Snapshot all SKILL.md files to `~/.skill-compass-backups/` |
+| `--list-backups` | Show all snapshots with timestamps and file counts |
+| `--rollback` | Restore everything from the latest backup |
+| `--rollback --backup-id <ID>` | Restore from a specific backup |
+
+```
+📦 Available Backups (newest first):
+
+  ID: 20260614-151204  |  Files: 18  |  Dir: ~/.openclaw/skills
+
+Restore with: python3 audit_skills.py --rollback [--backup-id <ID>]
+```
+
+If the AI rewrites a description and it breaks something — one command restores everything.
+
+## Upstream Feedback
+
+`--feedback` compares your improved descriptions against the last backup and generates **GitHub issue drafts** to share with the original skill authors. You decide which ones to submit.
+
+```
+📧  UPSTREAM FEEDBACK
+
+Found 1 improved description(s). Review and submit the ones you want to share.
+
+──────────────────────────────────────
+1. multi-search-engine
+──────────────────────────────────────
+
+Repo: https://github.com/Thomaszhou22/multi-search-engine
+
+Submit with:
+  gh issue create -R Thomaszhou22/multi-search-engine \
+    --title "Improve `multi-search-engine` description for reliable agent triggering" \
+    --body "..."
+```
+
+The issue draft focuses on the skill's problem — not the tool that found it:
+
+```
+Title: Improve `multi-search-engine` description for reliable agent triggering
+
+## Problem
+The current description does not contain a trigger condition, so agents
+often do not know when to activate this skill:
+  description: Multi search engine integration with 16 engines...
+
+## Suggested Fix
+  description: Use when the user asks to search the web...
+
+## Why This Matters
+- ~65% of agent skills never fire due to missing trigger phrases
+- Directive descriptions achieve ~100% activation rate
+- Passive descriptions only ~37%
+
+_Found via [Skill Compass](https://github.com/Thomaszhou22/skill-compass)_
+```
+
+This creates a community improvement loop: fix locally → share upstream → all users benefit.
 
 ## How Scoring Works
 
@@ -141,10 +220,10 @@ Each skill gets a score 0–100 based on five factors:
 
 | Problem | Prevalence | Who fixes it | How |
 |---------|-----------|-------------|-----|
-| Missing trigger condition | 65% | Agent (via `--suggest` prompt) | Rewrites description with `"Use when..."` |
-| Weak/passive language | common | Agent (via `--suggest` prompt) | Rewrites to directive form |
-| YAML syntax errors | 15% | Script (`--fix` flag) | Quotes unquoted colons automatically |
-| Description too long | 10% | Script (`--fix` flag) | Flags for manual trimming |
+| Missing trigger condition | 65% | Agent (via `--suggest`) | Rewrites description with `"Use when..."` |
+| Weak/passive language | common | Agent (via `--suggest`) | Rewrites to directive form |
+| YAML syntax errors | 15% | Script (`--fix`) | Quotes unquoted colons automatically |
+| Description too long | 10% | Script (advisory) | Flags for trimming |
 | Description overlap | 5% | Agent (judgment call) | Add `"Do NOT use for..."` constraints |
 | Token budget exceeded | rare | Script (advisory) | Reports total chars across all skills |
 
