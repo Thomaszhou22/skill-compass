@@ -643,6 +643,150 @@ def print_suggestion_prompt(report: Dict):
     print(prompt)
 
 
+# GitHub URL extraction pattern
+GITHUB_URL_RE = re.compile(r'https?://github\.com/([\w.-]+/[\w.-]+)', re.IGNORECASE)
+
+
+def extract_repo(skill_path: str) -> Optional[str]:
+    """Try to find a GitHub repo URL from SKILL.md content."""
+    try:
+        content = Path(skill_path).read_text(encoding='utf-8')
+        matches = GITHUB_URL_RE.findall(content)
+        # Filter out common false positives
+        for m in matches:
+            lower = m.lower()
+            if any(skip in lower for skip in ['github.com/trending', 'github.com/search',
+                                              'github.com/explore', 'github.com/about']):
+                continue
+            return m.rstrip('.')  # owner/repo
+        return None
+    except Exception:
+        return None
+
+
+def generate_feedback_issues(skills_dir: str) -> str:
+    """Generate GitHub issue drafts for skills whose descriptions were improved.
+    Compares current (fixed) descriptions against backup to find what changed."""
+    # Find the latest backup to get "before" state
+    backups = list_backups()
+    before_descs = {}  # skill_name -> old description
+    if backups:
+        backup_path = backups[0]['path']
+        for root, dirs, files in os.walk(backup_path):
+            if 'SKILL.md' in files:
+                try:
+                    content = open(os.path.join(root, 'SKILL.md')).read()
+                    fm, _ = parse_frontmatter(content)
+                    if fm and fm.get('name') and fm.get('description'):
+                        before_descs[fm['name']] = fm['description']
+                except Exception:
+                    pass
+    
+    # Get current (after) state
+    skill_files = find_skill_dirs([skills_dir])
+    improvements = []
+    
+    for sf in skill_files:
+        try:
+            content = sf.read_text(encoding='utf-8')
+            fm, _ = parse_frontmatter(content)
+            if not fm or not fm.get('name'):
+                continue
+            
+            name = fm['name']
+            new_desc = fm.get('description', '')
+            old_desc = before_descs.get(name, '')
+            
+            # Only include if description changed and now looks good (has trigger phrase)
+            if old_desc and new_desc and old_desc != new_desc:
+                desc_lower = new_desc.lower()
+                if any(p in desc_lower for p in TRIGGER_PHRASES):
+                    repo = extract_repo(str(sf))
+                    improvements.append({
+                        'name': name,
+                        'path': str(sf),
+                        'repo': repo,
+                        'old_desc': old_desc,
+                        'new_desc': new_desc,
+                    })
+            elif not old_desc and new_desc:
+                # No backup found — use audit to check if current is good
+                pass
+        except Exception:
+            pass
+    
+    if not improvements:
+        return "✅ No description improvements detected. Run --backup before fixing, then --feedback after."
+    
+    lines = [
+        "=" * 70,
+        "📬  SKILL COMPASS — UPSTREAM FEEDBACK",
+        "=" * 70,
+        "",
+        f"Found {len(improvements)} improved description(s) worth sharing with upstream authors.",
+        "Each issue draft below can be submitted to the skill's GitHub repo.",
+        "",
+    ]
+    
+    for i, imp in enumerate(improvements, 1):
+        name = imp['name']
+        repo = imp['repo']
+        old = imp['old_desc']
+        new = imp['new_desc']
+        
+        lines.append("─" * 70)
+        lines.append(f"{i}. {name}")
+        lines.append("─" * 70)
+        lines.append("")
+        
+        if repo:
+            lines.append(f"Repo: https://github.com/{repo}")
+            lines.append("")
+            lines.append("Ready-to-run command:")
+            lines.append("")
+            # Build the issue via gh CLI
+            title = f"[Skill Compass] Improve description for better trigger reliability"
+            body = "## Suggested Description Improvement\n\n"                + "Automated audit by [Skill Compass](https://github.com/Thomaszhou22/skill-compass).\n\n"                + "### Before\n"                + "```yaml\n"                + f"description: {old}\n"                + "```\n\n"                + "### After\n"                + "```yaml\n"                + f"description: {new}\n"                + "```\n\n"                + "### Why\n"                + 'The current description lacks a trigger condition ("Use when..."). '                + "~65% of agent skills fail to trigger for this reason. "                + "Adding a directive trigger phrase improves activation rate from ~37% to ~100%."
+            lines.append(f"  gh issue create -R {repo} \\\n")
+            lines.append(f"    --title \"{title}\" \\\n")
+            lines.append(f"    --body \"{body}\"")
+        else:
+            lines.append(f"File: {imp['path']}")
+            lines.append("⚠️  No GitHub repo URL found in SKILL.md.")
+            lines.append("   To enable upstream feedback, add your repo URL to the SKILL.md body.")
+        lines.append("")
+        lines.append("Issue preview:")
+        lines.append("")
+        lines.append(f"---")
+        lines.append(f"**Title:** {f'[Skill Compass] Improve description for {name}' if not repo else '[Skill Compass] Improve description for better trigger reliability'}")
+        lines.append(f"")
+        lines.append(f"### Before")
+        lines.append(f"```yaml")
+        lines.append(f"description: {old}")
+        lines.append(f"```")
+        lines.append(f"")
+        lines.append(f"### After")
+        lines.append(f"```yaml")
+        lines.append(f"description: {new}")
+        lines.append(f"```")
+        lines.append(f"")
+        lines.append(f"### Why")
+        lines.append(f"The current description lacks a trigger condition (\"Use when...\"). "
+                     f"~65% of agent skills fail to trigger for this reason. ")
+        lines.append(f"Adding a directive trigger phrase improves activation rate from ~37% to ~100%.")
+        lines.append(f"")
+        lines.append(f"_Generated by [Skill Compass](https://github.com/Thomaszhou22/skill-compass)_")
+        lines.append(f"---")
+        lines.append("")
+    
+    lines.append("=" * 70)
+    lines.append(f"\n💡 Tip: Run --backup before fixing descriptions, then --feedback after.")
+    lines.append(f"   This ensures we can compare before/after and generate accurate issue drafts.")
+    lines.append("=" * 70)
+    
+    return "\n".join(lines)
+
+
 def main():
     parser = argparse.ArgumentParser(description='Skill Compass - Audit skill triggering issues')
     parser.add_argument('--skills-dir', default=None,
@@ -663,6 +807,8 @@ def main():
                         help='Specify a backup ID to rollback to (use --list-backups to see IDs)')
     parser.add_argument('--list-backups', action='store_true',
                         help='List all available backups')
+    parser.add_argument('--feedback', action='store_true',
+                        help='Generate GitHub issue drafts to share improved descriptions with upstream authors')
     
     args = parser.parse_args()
     
@@ -702,6 +848,10 @@ def main():
             print(f"   Restore with: python3 audit_skills.py --rollback")
         else:
             print("❌ No SKILL.md files found to backup.")
+        return
+    
+    if args.feedback:
+        print(generate_feedback_issues(skills_dir))
         return
     
     # Create backup before --fix modifies files

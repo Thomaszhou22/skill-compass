@@ -41,6 +41,9 @@ python3 scripts/audit_skills.py --list-backups
 # Rollback to latest backup (or specify --backup-id)
 python3 scripts/audit_skills.py --rollback
 python3 scripts/audit_skills.py --rollback --backup-id 20260614-151204
+
+# Generate GitHub issue drafts to share fixes with upstream authors
+python3 scripts/audit_skills.py --feedback
 ```
 
 ## The Self-Healing Loop
