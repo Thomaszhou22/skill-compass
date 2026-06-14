@@ -1,6 +1,8 @@
 # 🧭 Skill Compass
 
-Audit and fix agent skill descriptions so they trigger reliably. Works with OpenClaw, Claude Code, and any agentskills.io-compatible platform.
+Audit, fix, and optimize agent skill descriptions so they trigger reliably. Works with OpenClaw, Claude Code, Cursor, and any agentskills.io-compatible platform.
+
+**The problem:** 65% of skills never trigger because their descriptions don't tell the agent *when* to fire. Skill Compass finds these and fixes them — automatically where possible, AI-assisted where not.
 
 ## Install
 
@@ -13,26 +15,48 @@ git clone https://github.com/Thomaszhou22/skill-compass.git
 cp -r skill-compass ~/.openclaw/skills/
 ```
 
+Requires Python 3.8+. No other dependencies.
+
 ## Quick Start
 
 ```bash
-# Scan all skills in default directories
+# Step 1: Audit — find broken skills
 python3 scripts/audit_skills.py
 
-# Scan a specific directory
-python3 scripts/audit_skills.py --skills-dir ~/.claude/skills
-
-# Auto-fix common issues (YAML colons, missing triggers)
+# Step 2: Auto-fix YAML syntax issues
 python3 scripts/audit_skills.py --fix
 
-# Generate an AI-ready prompt to rewrite bad descriptions
+# Step 3: Generate AI prompt to rewrite bad descriptions
 python3 scripts/audit_skills.py --suggest
 
-# JSON output for CI/CD
+# JSON output for CI/CD pipelines
 python3 scripts/audit_skills.py --json
 ```
 
-### What the audit tells you
+## The Self-Healing Loop
+
+The three steps above form a closed loop that an agent can run by itself — no human editing required:
+
+```
+  ┌──────────────┐     ┌──────────────┐     ┌──────────────────┐
+  │  1. Audit    │────▶│  2. Fix YAML │────▶│  3. Suggest prompt│
+  │  (find bugs) │     │  (auto patch)│     │  (AI rewrites)    │
+  └──────────────┘     └──────────────┘     └──────────────────┘
+         ▲                                         │
+         │         Agent applies rewrites          │
+         └─────────────────────────────────────────┘
+                     Re-audit to verify
+```
+
+| Step | Command | What happens | Needs human? |
+|------|---------|-------------|--------------|
+| **Audit** | `audit_skills.py` | Scans all SKILL.md files, scores each 0–100 | No |
+| **Auto-fix** | `audit_skills.py --fix` | Fixes YAML syntax errors in-place | No |
+| **Suggest** | `audit_skills.py --suggest` | Outputs a prompt with rules + context for each failing skill | No — paste it to any AI agent |
+| **Rewrite** | Agent reads the suggest prompt | Rewrites descriptions following the rules | No — agent does it |
+| **Verify** | `audit_skills.py` again | Confirm scores improved | No |
+
+### What a full run looks like
 
 ```
 🧭  SKILL COMPASS — AUDIT REPORT
@@ -55,42 +79,68 @@ python3 scripts/audit_skills.py --json
 ✅ powerpoint-pptx — Score: 100/100
 ```
 
-Each skill gets a score 0–100 based on:
-- **Trigger condition** — does the description say *when* to use it?
-- **YAML validity** — does frontmatter parse correctly?
-- **Token budget** — is total description length within limits?
-- **Conflict detection** — do descriptions overlap with other skills?
+### What `--suggest` generates
 
-## How It Works
+```
+You are a skill description optimizer. Your job is to rewrite SKILL.md
+frontmatter descriptions so they trigger reliably in AI agents.
 
-Most skill triggering failures come down to one thing: **the description doesn't tell the agent when to fire.**
+## Rules
+1. Start with "Use when..." or "ALWAYS invoke when..."
+2. Include specific trigger keywords the user might say
+3. Add "Do NOT use for..." to prevent false triggers when relevant
+4. Keep the description under 350 characters
+5. Do NOT change the skill name — only the description
 
-The workflow is two steps:
+## Skills to Fix
 
-**Step 1 — Audit.** Run the script, get a report telling you which skills have problems and what kind.
+### 1. multi-search-engine (Score: 50/100)
+**File:** `~/.openclaw/skills/multi-search-engine/SKILL.md`
+**Current description:** Multi search engine integration with 16 engines...
+**Issues:** NO_TRIGGER; WEAK_LANG
+**Hints:** Add trigger phrases; Replace passive language
 
-**Step 2 — Fix.** Some fixes are automatic (`--fix` flag), others need human judgment:
+...
 
-| Fix type | Who does it | Example |
-|----------|-------------|--------|
-| YAML syntax errors | Script auto-fixes | Missing quotes around colons |
-| Description too long | Script auto-fixes | Truncates to token budget |
-| Missing trigger condition | `--suggest` generates a prompt | `"Helps with weather"` → `"Use when user asks about weather, temperature, or forecasts"` |
-| Weak/passive language | `--suggest` generates a prompt | `"Can assist with..."` → `"ALWAYS invoke when..."` |
+After generating all rewrites, apply them to the respective SKILL.md files.
+```
 
-The key insight: description quality is the #1 factor in trigger reliability. Directive descriptions ("Use when...") achieve ~100% activation, while passive ones ("Helps with...") only ~37%.
+Paste this to any AI agent (Claude, GPT, Gemini, etc.) and it rewrites every bad description following the rules. Re-run the audit to verify improvements.
 
-For the full diagnostic workflow, see [`SKILL.md`](SKILL.md). For documented failure patterns with real cases, see [`references/failure-patterns.md`](references/failure-patterns.md).
+## How Scoring Works
+
+Each skill gets a score 0–100 based on five factors:
+
+| Factor | Weight | What it checks |
+|--------|--------|---------------|
+| **Trigger condition** | ±35 | Does the description say *when* to fire? (`"Use when..."`) |
+| **Language strength** | ±15 | Directive (`"ALWAYS invoke"`) vs passive (`"Helps with"`) |
+| **YAML validity** | Pass/fail | Does frontmatter parse without errors? |
+| **Description length** | ±15–30 | Under 350 chars, over 30 chars, enough keywords (≥10 words) |
+| **Conflict detection** | Advisory | Do descriptions overlap with other skills? (Jaccard > 0.4) |
+
+**Real data:** Directive descriptions (`"Use when..."`) achieve ~100% activation rate. Passive descriptions (`"Helps with..."`) only ~37%. *(Source: 650-skill activation experiment, Ivan Seleznov, Medium)*
+
+## What Gets Fixed Automatically vs. What Needs the Agent
+
+| Problem | Prevalence | Who fixes it | How |
+|---------|-----------|-------------|-----|
+| Missing trigger condition | 65% | Agent (via `--suggest` prompt) | Rewrites description with `"Use when..."` |
+| Weak/passive language | common | Agent (via `--suggest` prompt) | Rewrites to directive form |
+| YAML syntax errors | 15% | Script (`--fix` flag) | Quotes unquoted colons automatically |
+| Description too long | 10% | Script (`--fix` flag) | Flags for manual trimming |
+| Description overlap | 5% | Agent (judgment call) | Add `"Do NOT use for..."` constraints |
+| Token budget exceeded | rare | Script (advisory) | Reports total chars across all skills |
 
 ## Files
 
 ```
 skill-compass/
-├── SKILL.md                        # Diagnostic workflow + fix guide
+├── SKILL.md                        # Diagnostic workflow + fix guide for agents
 ├── scripts/
 │   └── audit_skills.py             # Automated scanner (Python 3, no deps)
 ├── references/
-│   └── failure-patterns.md         # 6 failure patterns with fixes
+│   └── failure-patterns.md         # 6 failure patterns with real examples
 └── README.md
 ```
 
