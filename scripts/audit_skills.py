@@ -662,10 +662,8 @@ def extract_repo(skill_path: str) -> Optional[str]:
         return None
     except Exception:
         return None
-
 def generate_feedback_issues(skills_dir: str) -> str:
-    """Generate GitHub issue drafts for skills whose descriptions were improved.
-    Compares current (fixed) descriptions against backup to find what changed."""
+    """Generate GitHub issue drafts for skills whose descriptions were improved."""
     backups = list_backups()
     before_descs = {}
     if backups:
@@ -708,7 +706,7 @@ def generate_feedback_issues(skills_dir: str) -> str:
 
     lines_out = [
         "=" * 70,
-        "\U0001F4E7  SKILL COMPASS \u2014 UPSTREAM FEEDBACK",
+        "\U0001F4E7  UPSTREAM FEEDBACK",
         "=" * 70,
         "",
         "Found {} improved description(s). Review and submit the ones you want to share.".format(len(improvements)),
@@ -726,63 +724,63 @@ def generate_feedback_issues(skills_dir: str) -> str:
         lines_out.append("\u2500" * 70)
         lines_out.append("")
 
-        # Build issue content (shared between preview and gh command)
-        issue_title = "Improve `{}` description for better agent trigger reliability".format(name)
+        issue_title = "Improve `{}` description for reliable agent triggering".format(name)
 
         issue_body_parts = [
-            "### Context",
+            "## Problem",
             "",
-            "Agent skills rely on their `description` field to tell the AI *when* to fire. "
-            "Research across 650 skills shows that descriptions without a trigger condition "
-            '(\"Use when...\") only activate ~37% of the time, while directive ones hit ~100%.',
+            "The current `description` in `{name}/SKILL.md` does not contain a trigger condition, "
+            "so agents often do not know when to activate this skill:",
             "",
-            "### Current",
             "```yaml",
             "description: {}".format(old),
             "```",
             "",
-            "### Suggested",
+            "## Suggested Fix",
+            "",
+            "Rewrite the description to lead with **when** agents should use it:",
+            "",
             "```yaml",
             "description: {}".format(new),
             "```",
             "",
-            "### How this was found",
+            "## Why This Matters",
             "",
-            "Ran [Skill Compass](https://github.com/Thomaszhou22/skill-compass) "
-            "\u2014 a community tool that audits skill descriptions for trigger reliability. "
-            "You can scan your own skills with:",
-            "```bash",
-            "clawhub install skill-compass-guardian",
-            "python3 scripts/audit_skills.py --init",
-            "```",
+            "- ~65% of agent skills never fire because their description lacks a trigger phrase",
+            "- Directive descriptions (start with \"Use when...\") achieve ~100% activation rate",
+            "- Passive descriptions (\"Helps with...\") only achieve ~37%",
+            "- Data from a 650-skill activation study",
+            "",
+            "_Found via [Skill Compass](https://github.com/Thomaszhou22/skill-compass)_",
         ]
-        issue_body = "\n".join(issue_body_parts)
+        issue_body = "\n".join(issue_body_parts).format(name=name)
 
         if repo:
             lines_out.append("Repo: https://github.com/{}".format(repo))
             lines_out.append("")
-            lines_out.append("Submit with one command:")
+            lines_out.append("Submit with:")
             lines_out.append("")
             lines_out.append('  gh issue create -R {} \\'.format(repo))
             lines_out.append('    --title "{}" \\'.format(issue_title))
-            lines_out.append('    --body "{}"'.format(issue_body.replace('"', '\\"')))
+            lines_out.append('    --body "$(cat <<\'EOF\'')
+            lines_out.append(issue_body)
+            lines_out.append('EOF)"')
         else:
             lines_out.append("File: {}".format(imp['path']))
             lines_out.append("\u26a0\ufe0f  No GitHub repo URL found in SKILL.md.")
-            lines_out.append("   Add your repo URL to the SKILL.md body to enable upstream feedback.")
         lines_out.append("")
-        lines_out.append("Issue preview:")
+        lines_out.append("Preview:")
         lines_out.append("")
         lines_out.append("---")
         lines_out.append("**Title:** {}".format(issue_title))
         lines_out.append("")
         for part in issue_body_parts:
-            lines_out.append(part)
+            lines_out.append(part.format(name=name) if "{" in part else part)
         lines_out.append("---")
         lines_out.append("")
 
     lines_out.append("=" * 70)
-    lines_out.append("\U0001F4A1 Tip: --backup before fixing, --feedback after. That's how we get the before/after diff.")
+    lines_out.append("\U0001F4A1 --backup before fixing, --feedback after. That's how we get the before/after diff.")
     lines_out.append("=" * 70)
 
     return "\n".join(lines_out)
