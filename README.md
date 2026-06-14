@@ -23,7 +23,7 @@ Requires Python 3.8+. No other dependencies.
 # Step 1: Audit — find broken skills
 python3 scripts/audit_skills.py
 
-# Step 2: Auto-fix YAML syntax issues
+# Step 2: Auto-fix YAML syntax issues (auto-creates backup)
 python3 scripts/audit_skills.py --fix
 
 # Step 3: Generate AI prompt to rewrite bad descriptions
@@ -31,6 +31,16 @@ python3 scripts/audit_skills.py --suggest
 
 # JSON output for CI/CD pipelines
 python3 scripts/audit_skills.py --json
+
+# Backup all SKILL.md files manually
+python3 scripts/audit_skills.py --backup
+
+# List available backups
+python3 scripts/audit_skills.py --list-backups
+
+# Rollback to latest backup (or specify --backup-id)
+python3 scripts/audit_skills.py --rollback
+python3 scripts/audit_skills.py --rollback --backup-id 20260614-151204
 ```
 
 ## The Self-Healing Loop
@@ -55,6 +65,9 @@ The three steps above form a closed loop that an agent can run by itself — no 
 | **Suggest** | `audit_skills.py --suggest` | Outputs a prompt with rules + context for each failing skill | No — paste it to any AI agent |
 | **Rewrite** | Agent reads the suggest prompt | Rewrites descriptions following the rules | No — agent does it |
 | **Verify** | `audit_skills.py` again | Confirm scores improved | No |
+| **Backup** | `audit_skills.py --backup` | Snapshot all SKILL.md files | No |
+| **Rollback** | `audit_skills.py --rollback` | Restore from backup if AI broke something | No |
+| **List backups** | `audit_skills.py --list-backups` | Show all available snapshots | No |
 
 ### What a full run looks like
 

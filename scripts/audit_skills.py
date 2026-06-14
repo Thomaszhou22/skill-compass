@@ -317,6 +317,103 @@ def auto_fix_colon(content: str) -> Optional[str]:
     return '\n'.join(lines) if fixed else None
 
 
+BACKUP_DIR = os.path.expanduser("~/.skill-compass-backups")
+
+
+def create_backup(skills_dir: str) -> Optional[str]:
+    """Backup all SKILL.md files before modifying. Returns backup path or None."""
+    from datetime import datetime
+    timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+    backup_path = os.path.join(BACKUP_DIR, timestamp)
+    
+    skill_files = find_skill_dirs([skills_dir])
+    if not skill_files:
+        return None
+    
+    os.makedirs(backup_path, exist_ok=True)
+    count = 0
+    for sf in skill_files:
+        skill_dir = sf.parent
+        rel_path = skill_dir.relative_to(skills_dir) if os.path.isdir(skills_dir) else Path(skill_dir.name)
+        dest_dir = backup_path / rel_path
+        dest_dir.mkdir(parents=True, exist_ok=True)
+        dest_file = dest_dir / "SKILL.md"
+        try:
+            dest_file.write_text(sf.read_text(encoding='utf-8'), encoding='utf-8')
+            count += 1
+        except Exception:
+            pass
+    
+    if count == 0:
+        return None
+    
+    # Write metadata
+    meta_file = os.path.join(backup_path, "_backup_info.txt")
+    with open(meta_file, 'w') as f:
+        f.write(f"timestamp: {timestamp}\n")
+        f.write(f"skills_dir: {skills_dir}\n")
+        f.write(f"files_backed_up: {count}\n")
+    
+    return backup_path
+
+
+def list_backups() -> list:
+    """List available backups, newest first."""
+    if not os.path.isdir(BACKUP_DIR):
+        return []
+    backups = []
+    for name in sorted(os.listdir(BACKUP_DIR), reverse=True):
+        meta = os.path.join(BACKUP_DIR, name, "_backup_info.txt")
+        info = {}
+        if os.path.isfile(meta):
+            for line in open(meta):
+                if ':' in line:
+                    k, v = line.strip().split(':', 1)
+                    info[k.strip()] = v.strip()
+        backups.append({
+            'id': name,
+            'path': os.path.join(BACKUP_DIR, name),
+            'files': info.get('files_backed_up', '?'),
+            'skills_dir': info.get('skills_dir', '?'),
+        })
+    return backups
+
+
+def rollback(skills_dir: str, backup_id: Optional[str] = None) -> bool:
+    """Restore SKILL.md files from a backup. Uses latest if backup_id is None."""
+    backups = list_backups()
+    if not backups:
+        return False
+    
+    if backup_id:
+        target = next((b for b in backups if b['id'] == backup_id), None)
+        if not target:
+            return False
+    else:
+        target = backups[0]
+    
+    backup_path = target['path']
+    restored = 0
+    for root, dirs, files in os.walk(backup_path):
+        if 'SKILL.md' in files:
+            rel = os.path.relpath(root, backup_path)
+            dest_dir = os.path.join(skills_dir, rel) if rel != '.' else skills_dir
+            dest_file = os.path.join(dest_dir, 'SKILL.md')
+            src_file = os.path.join(root, 'SKILL.md')
+            try:
+                os.makedirs(dest_dir, exist_ok=True)
+                with open(src_file, 'r') as f:
+                    content = f.read()
+                with open(dest_file, 'w') as f:
+                    f.write(content)
+                restored += 1
+            except Exception:
+                pass
+    
+    target['restored'] = restored
+    return restored > 0
+
+
 def print_report(report: Dict, json_output: bool = False):
     """Print the audit report."""
     if json_output:
@@ -443,6 +540,10 @@ def print_init_guide(report: Dict):
     
     # Auto-run step 1
     print("▶  Running Step 1 (auto-fix YAML)...\n")
+    # Create backup before fixing
+    backup_path = create_backup(report['skills_dir'])
+    if backup_path:
+        print(f'   💾 Backup saved: {backup_path}')
     # Re-run with fix
     fixed_report = audit_skills(report['skills_dir'], auto_fix=True)
     yaml_fixed = sum(1 for sk in fixed_report['skills'] if sk.get('fixed'))
@@ -460,6 +561,12 @@ def print_init_guide(report: Dict):
     print("📋 Copy the prompt above and paste it to your AI agent.")
     print("   The agent will rewrite the descriptions and save the files.")
     print("   Then run `python3 scripts/audit_skills.py` to verify.")
+    print()
+    backup_id = os.path.basename(backup_path) if backup_path else '<id>'
+    print("⏮️  If something goes wrong, rollback with:")
+    print(f"   python3 scripts/audit_skills.py --rollback                    # restore latest backup")
+    print(f"   python3 scripts/audit_skills.py --rollback --backup-id {backup_id}  # this specific one")
+    print(f"   python3 scripts/audit_skills.py --list-backups               # see all backups")
     print()
 
 
@@ -548,6 +655,14 @@ def main():
                         help='Generate an AI-ready prompt to rewrite bad descriptions')
     parser.add_argument('--init', action='store_true',
                         help='First-time setup: audit + auto-fix + suggest in one pass')
+    parser.add_argument('--backup', action='store_true',
+                        help='Backup all SKILL.md files before making changes')
+    parser.add_argument('--rollback', action='store_true',
+                        help='Restore SKILL.md files from the latest backup')
+    parser.add_argument('--backup-id', default=None,
+                        help='Specify a backup ID to rollback to (use --list-backups to see IDs)')
+    parser.add_argument('--list-backups', action='store_true',
+                        help='List all available backups')
     
     args = parser.parse_args()
     
@@ -557,6 +672,44 @@ def main():
     else:
         # Auto-detect: use first existing default dir
         skills_dir = next((d for d in DEFAULT_SKILL_DIRS if os.path.isdir(d)), DEFAULT_SKILL_DIRS[0])
+    
+    # Handle backup management commands first
+    if args.list_backups:
+        backups = list_backups()
+        if not backups:
+            print("No backups found. Run --backup or --init to create one.")
+        else:
+            print("📦 Available Backups (newest first):\n")
+            for b in backups:
+                print(f"  ID: {b['id']}  |  Files: {b['files']}  |  Dir: {b['skills_dir']}")
+            print(f"\nRestore with: python3 audit_skills.py --rollback [--backup-id <ID>]")
+        return
+    
+    if args.rollback:
+        print("⏮️  Rolling back...\n")
+        success = rollback(skills_dir, args.backup_id)
+        if success:
+            print("✅ Restore complete! Re-run audit to verify:")
+            print(f"   python3 audit_skills.py --skills-dir {skills_dir}")
+        else:
+            print("❌ No backup found to restore. Run --list-backups to see available backups.")
+        return
+    
+    if args.backup:
+        path = create_backup(skills_dir)
+        if path:
+            print(f"💾 Backup created: {path}")
+            print(f"   Restore with: python3 audit_skills.py --rollback")
+        else:
+            print("❌ No SKILL.md files found to backup.")
+        return
+    
+    # Create backup before --fix modifies files
+    if args.fix:
+        backup_path = create_backup(skills_dir)
+        if backup_path:
+            print(f"💾 Backup saved: {backup_path}")
+            print(f"   Rollback with: python3 audit_skills.py --rollback\n")
     
     if args.init:
         report = audit_skills(skills_dir, auto_fix=False)
