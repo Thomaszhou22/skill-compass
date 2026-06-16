@@ -51,6 +51,88 @@ Fix all automatically? (y/n)
 
 Onboarding runs only once. Say "full report" anytime to see it again.
 
+## What's New in v2.1
+
+### Negative Constraint Detection (Anti-Trigger Patterns)
+
+Skills without "Do NOT use for..." constraints risk false activations when multiple skills overlap. v2.1 makes negative constraints **mandatory**, not optional:
+
+- **Scoring change**: Missing negative constraints now costs **−15 points** (was −5)
+- **New command** `--negative-samples`: Scans all skills and generates suggested negative constraints for those missing them, based on adjacent skills in the same category
+- **Four-Part Formula**: Description design pattern upgraded from 3 parts to 4:
+  ```
+  [Trigger condition] + [Negative constraint] + [Capability declaration] + [Search vocabulary]
+  ```
+- **Templates**: 4 fill-in-the-blank negative constraint templates with worked examples
+
+```bash
+# Generate negative constraint suggestions for skills missing them
+python3 scripts/audit_skills.py --negative-samples
+```
+
+Output example:
+```
+📌 github (uncategorized)
+   Current: Use when the user asks to interact with GitHub...
+
+   Suggested negative constraint:
+   "Do NOT use for code-review-and-quality, git-workflow-and-versioning.
+    Those have dedicated skills."
+```
+
+### Hierarchical Routing (Layered Dispatch)
+
+When skill count grows beyond ~15, flat matching degrades. v2.1 introduces **two-stage dispatch** via the `category` field in YAML frontmatter:
+
+```yaml
+---
+name: github
+category: coding
+description: Use when the user asks to interact with GitHub...
+---
+```
+
+**How it works:**
+```
+User query
+    ↓
+Layer 1: Category matching ("Is this about coding? documents? system?")
+    ↓
+Layer 2: Skill matching within winning category ("Which coding skill?")
+```
+
+**Benefits:**
+- Lower token pressure — only relevant category descriptions compete
+- Fewer false triggers — skills in different categories never compete
+- Scales better — adding skill #30 doesn't degrade skill #5's accuracy
+
+**Standard categories:** `coding`, `documents`, `system`, `communication`, `creative`, `meta`, `reasoning`
+
+```bash
+# Analyze routing health: category distribution, keyword leaks, budget per group
+python3 scripts/audit_skills.py --routing
+```
+
+Output example:
+```
+Category            Skills    Chars   % Budget
+──────────────────────────────────────────────────
+coding                  5      1200      23.0%
+documents               4       980      18.7%
+system                  3       720      13.7%
+uncategorized           2       510       9.7%  ⚠️
+
+📋 Negative Constraints: 9/14 have "Do NOT use for..."
+   ⚠️  5 skill(s) missing negative constraints
+```
+
+### Audit Script Enhancements
+
+- `category` field parsing in YAML frontmatter
+- `description` field now stored in audit report for downstream tooling
+- Cross-category keyword leak detection (>30% overlap flags)
+- Per-category token budget reporting
+
 ## Commands
 
 ```bash
@@ -70,6 +152,14 @@ python3 scripts/audit_skills.py --suggest
 
 # JSON output for CI/CD pipelines
 python3 scripts/audit_skills.py --json
+
+# ── Routing & Negative Constraints (v2.1) ──
+
+# Analyze hierarchical routing health
+python3 scripts/audit_skills.py --routing
+
+# Generate negative constraint suggestions for skills missing them
+python3 scripts/audit_skills.py --negative-samples
 
 # ── Backup & Rollback ──
 
@@ -238,11 +328,12 @@ This creates a community improvement loop: fix locally → share upstream → al
 
 ## How Scoring Works
 
-Each skill gets a score 0–100 based on five factors:
+Each skill gets a score 0–100 based on six factors:
 
 | Factor | Weight | What it checks |
 |--------|--------|---------------|
 | **Trigger condition** | ±35 | Does the description say *when* to fire? (`"Use when..."`) |
+| **Negative constraint** | ±15 | Does it say what NOT to fire on? (`"Do NOT use for..."`) |
 | **Language strength** | ±15 | Directive (`"ALWAYS invoke"`) vs passive (`"Helps with"`) |
 | **YAML validity** | Pass/fail | Does frontmatter parse without errors? |
 | **Description length** | ±15–30 | Under 350 chars, over 30 chars, enough keywords (≥10 words) |
@@ -255,10 +346,13 @@ Each skill gets a score 0–100 based on five factors:
 | Problem | Prevalence | Who fixes it | How |
 |---------|-----------|-------------|-----|
 | Missing trigger condition | 65% | Agent (via `--suggest`) | Rewrites description with `"Use when..."` |
+| Missing negative constraint | common | Script + Agent | `--negative-samples` suggests, agent applies |
+| No category assigned | common | Script (advisory) | `--routing` flags uncategorized skills |
 | Weak/passive language | common | Agent (via `--suggest`) | Rewrites to directive form |
 | YAML syntax errors | 15% | Script (`--fix`) | Quotes unquoted colons automatically |
 | Description too long | 10% | Script (advisory) | Flags for trimming |
 | Description overlap | 5% | Agent (judgment call) | Add `"Do NOT use for..."` constraints |
+| Cross-category keyword leak | rare | Script (advisory) | `--routing` flags shared keywords across categories |
 | Token budget exceeded | rare | Script (advisory) | Reports total chars across all skills |
 
 ## Files
@@ -269,7 +363,8 @@ skill-compass/
 ├── scripts/
 │   └── audit_skills.py             # Automated scanner (Python 3, no deps)
 ├── references/
-│   └── failure-patterns.md         # 6 failure patterns with real examples
+│   ├── failure-patterns.md         # 6 failure patterns with real examples
+│   └── hierarchical-routing.md     # Layered dispatch guide & best practices
 └── README.md
 ```
 
