@@ -19,12 +19,44 @@ cp -r skill-compass ~/.openclaw/skills/
 
 Requires Python 3.8+. No other dependencies.
 
+## First Run (Onboarding)
+
+When first installed, the skill runs a comprehensive ecosystem health check:
+
+1. **Scan all installed skills** — audit every SKILL.md for YAML validity, description quality, and discoverability
+2. **Present a health report** — total skills, healthy vs broken, token budget usage, issues found
+3. **Ask: auto-fix or manual?** — _"I found X issues. Want me to fix them automatically?"_
+4. **Conflict detection** — flag any skills with overlapping trigger keywords
+5. **Token budget advice** — warn if total description chars are approaching the limit
+6. **Record onboarding** — subsequent runs skip the overview and go straight to audit workflow
+
+```
+📊 Skill Ecosystem Health Report
+
+Total skills: 18
+✅ Healthy: 15
+⚠️ Needs attention: 3
+❌ Broken: 0
+
+Token budget: 8,420 / 30,000 chars (28% used)
+
+Issues found:
+  • 3 skills with low description scores (<70)
+  • 0 skills with YAML format errors
+  • 1 trigger conflict detected
+  • 0 skills not discoverable
+
+Fix all automatically? (y/n)
+```
+
+Onboarding runs only once. Say "full report" anytime to see it again.
+
 ## Commands
 
 ```bash
 # ── Core Workflow ──
 
-# One-command setup: audit + auto-fix + AI prompt (recommended for first run)
+# One-command setup: audit + auto-fix + AI prompt (also triggers onboarding on first run)
 python3 scripts/audit_skills.py --init
 
 # Audit only — scan and score all skills

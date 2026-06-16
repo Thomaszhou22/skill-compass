@@ -44,6 +44,22 @@ DEFAULT_SKILL_DIRS = [
     os.path.expanduser("~/.openclaw/.agents/skills"),
 ]
 
+# Negative constraint indicators
+NEGATIVE_PHRASES = [
+    "do not use", "do not invoke", "not for", "don't use for",
+    "does not handle", "this skill does not", "use [another",
+    "use the", "use [other", "instead use", "rather than"
+]
+
+# Standard categories for hierarchical routing
+STANDARD_CATEGORIES = {
+    'coding', 'documents', 'system', 'communication',
+    'creative', 'meta', 'reasoning', 'uncategorized'
+}
+
+# Category pattern in frontmatter
+CATEGORY_RE = re.compile(r'^category:\s*(.+)$', re.MULTILINE)
+
 # Token budget threshold (chars)
 TOKEN_BUDGET_WARN = 20000
 TOKEN_BUDGET_CRITICAL = 30000
@@ -86,7 +102,17 @@ def parse_frontmatter(content: str) -> Tuple[Optional[Dict], str]:
         'description': desc,
         'colon_issue': colon_issue,
         'raw_frontmatter': fm_text,
+        'category': extract_category(fm_text),
     }, body
+
+
+def extract_category(fm_text: str) -> Optional[str]:
+    """Extract category field from frontmatter."""
+    match = CATEGORY_RE.search(fm_text)
+    if match:
+        cat = match.group(1).strip().strip('"\'').lower()
+        return cat
+    return None
 
 
 def score_description(desc: str, name: str) -> Dict:
@@ -134,10 +160,13 @@ def score_description(desc: str, name: str) -> Dict:
         score += 5  # bonus, capped at 100
     
     # Check for negative constraints
-    has_negative = any(p in desc_lower for p in ['do not use', 'not for', 'do not invoke'])
+    has_negative = any(p in desc_lower for p in NEGATIVE_PHRASES)
     if not has_negative:
-        score -= 5
-        suggestions.append('Consider adding "Do NOT use for..." to prevent false triggers')
+        score -= 15
+        issues.append('NO_NEGATIVE: Missing "Do NOT use for..." constraint — risks false triggers')
+        suggestions.append('Add negative constraint: "Do NOT use for [adjacent domain]"')
+    else:
+        score += 5  # bonus for having explicit negatives
     
     # Check for keywords/trigger vocabulary
     word_count = len(desc.split())
@@ -254,7 +283,9 @@ def audit_skills(skills_dir: str, auto_fix: bool = False) -> Dict:
         skill_info = {
             'path': str(sf),
             'name': fm['name'] or 'MISSING',
+            'description': fm['description'] or '',
             'description_length': len(fm['description'] or ''),
+            'category': fm.get('category') or 'uncategorized',
         }
         
         if fm['colon_issue']:
@@ -786,6 +817,156 @@ def generate_feedback_issues(skills_dir: str) -> str:
     return "\n".join(lines_out)
 
 
+def print_negative_suggestions(report: Dict):
+    """Generate suggested negative constraints for skills missing them."""
+    print("=" * 70)
+    print("🚫  NEGATIVE CONSTRAINT GENERATOR")
+    print("=" * 70)
+    print()
+    print("These skills lack \"Do NOT use for...\" constraints.")
+    print("Below are AI-generated suggestions to paste into each SKILL.md.\n")
+
+    # Build category map for suggesting adjacent skills
+    cat_map = {}
+    for s in report['skills']:
+        cat = s.get('category', 'uncategorized')
+        cat_map.setdefault(cat, []).append(s)
+
+    missing = [s for s in report['skills']
+               if not any(p in (s.get('description') or '').lower() for p in NEGATIVE_PHRASES)
+               and not s.get('error')]
+
+    if not missing:
+        print("✅ All skills have negative constraints. Great!")
+        return
+
+    for skill in missing:
+        name = skill.get('name', 'unknown')
+        desc = skill.get('description', '')
+        cat = skill.get('category', 'uncategorized')
+        path = skill.get('path', '')
+
+        # Find adjacent skills in same category
+        siblings = [s for s in cat_map.get(cat, []) if s.get('name') != name]
+
+        print("─" * 70)
+        print(f"📌 {name} ({cat})")
+        print(f"   File: {path}")
+        print(f"   Current: {desc[:100]}{'...' if len(desc) > 100 else ''}")
+        print()
+
+        if siblings:
+            sib_names = ', '.join(s.get('name', '?') for s in siblings[:4])
+            print(f"   Suggested negative constraint:")
+            print(f"   \"Do NOT use for {sib_names}. Those have dedicated skills.\"")
+        else:
+            # No siblings, suggest based on description keywords
+            print(f"   Suggested negative constraint:")
+            print(f"   \"Do NOT use for unrelated tasks. Only activate on direct user request matching the trigger above.\"")
+        print()
+
+    print("─" * 70)
+    print(f"\n💡 Paste the suggested constraints into each skill's description.")
+    print(f"   Then re-run: python3 audit_skills.py --routing\n")
+    print("=" * 70)
+
+
+def analyze_routing(skills: List[Dict]) -> Dict:
+    """Analyze hierarchical routing health."""
+    categories = {}
+    for s in skills:
+        cat = s.get('category', 'uncategorized') or 'uncategorized'
+        if cat not in categories:
+            categories[cat] = {'skills': [], 'total_chars': 0}
+        categories[cat]['skills'].append(s.get('name', 'unknown'))
+        categories[cat]['total_chars'] += s.get('description_length', 0)
+
+    # Find cross-category keyword leaks
+    cat_keywords = {}
+    leaks = []
+    for cat, info in categories.items():
+        words = set()
+        for name in info['skills']:
+            skill = next((s for s in skills if s.get('name') == name), None)
+            if skill and skill.get('description'):
+                words.update(skill['description'].lower().split())
+        cat_keywords[cat] = words
+
+    checked = set()
+    for cat1 in categories:
+        for cat2 in categories:
+            if cat1 >= cat2 or (cat1, cat2) in checked:
+                continue
+            checked.add((cat1, cat2))
+            w1, w2 = cat_keywords[cat1], cat_keywords[cat2]
+            if not w1 or not w2:
+                continue
+            overlap = len(w1 & w2) / len(w1 | w2)
+            if overlap > 0.3:
+                shared = sorted(w1 & w2)[:8]
+                leaks.append({
+                    'cat_a': cat1, 'cat_b': cat2,
+                    'overlap': f'{overlap:.0%}',
+                    'shared': shared,
+                })
+
+    return {'categories': categories, 'keyword_leaks': leaks}
+
+
+def print_routing_report(report: Dict):
+    """Print hierarchical routing analysis."""
+    routing = analyze_routing(report['skills'])
+    cats = routing['categories']
+    total_chars = sum(c['total_chars'] for c in cats.values())
+
+    print("=" * 70)
+    print("🧭  SKILL COMPASS — ROUTING ANALYSIS")
+    print("=" * 70)
+    print()
+    print(f"{'Category':<18} {'Skills':>7} {'Chars':>8} {'% Budget':>10}")
+    print("─" * 50)
+
+    for cat in sorted(cats.keys()):
+        info = cats[cat]
+        pct = (info['total_chars'] / total_chars * 100) if total_chars else 0
+        warning = ' ⚠️' if cat == 'uncategorized' and len(info['skills']) > 2 else ''
+        heavy = ' ⚠️' if info['total_chars'] > 4000 else ''
+        print(f"{cat:<18} {len(info['skills']):>7} {info['total_chars']:>8} {pct:>9.1f}%{warning}{heavy}")
+
+    print(f"{'─' * 50}")
+    print(f"{'TOTAL':<18} {report['total_skills']:>7} {total_chars:>8}")
+    print()
+
+    # Orphaned skills
+    orphaned = cats.get('uncategorized', {}).get('skills', [])
+    if orphaned:
+        print(f"⚠️  Uncategorized skills ({len(orphaned)}): {', '.join(orphaned)}")
+        print("   Assign a `category:` field in frontmatter for better routing.")
+        print()
+
+    # Cross-category leaks
+    leaks = routing['keyword_leaks']
+    if leaks:
+        print(f"⚡ Cross-Category Keyword Leaks ({len(leaks)}):")
+        for leak in leaks:
+            print(f"   {leak['cat_a']} ↔ {leak['cat_b']} ({leak['overlap']} overlap)")
+            print(f"      Shared: {', '.join(leak['shared'][:5])}")
+        print()
+
+    # Negative constraint stats
+    with_neg = sum(1 for s in report['skills'] if any(p in (s.get('description') or '').lower() for p in NEGATIVE_PHRASES))
+    without_neg = report['total_skills'] - with_neg
+    print(f"📋 Negative Constraints: {with_neg}/{report['total_skills']} have \"Do NOT use for...\"")
+    if without_neg > 0:
+        print(f"   ⚠️  {without_neg} skill(s) missing negative constraints:")
+        for s in report['skills']:
+            desc = (s.get('description') or '').lower()
+            if not any(p in desc for p in NEGATIVE_PHRASES):
+                print(f"      • {s.get('name', 'unknown')}")
+    print()
+    print("=" * 70)
+
+
 def main():
     parser = argparse.ArgumentParser(description='Skill Compass - Audit skill triggering issues')
     parser.add_argument('--skills-dir', default=None,
@@ -808,6 +989,10 @@ def main():
                         help='List all available backups')
     parser.add_argument('--feedback', action='store_true',
                         help='Generate GitHub issue drafts to share improved descriptions with upstream authors')
+    parser.add_argument('--routing', action='store_true',
+                        help='Analyze hierarchical routing: category distribution, keyword leaks, negative constraints')
+    parser.add_argument('--negative-samples', action='store_true',
+                        help='Scan skills and generate suggested negative constraints for those missing them')
     
     args = parser.parse_args()
     
@@ -851,6 +1036,16 @@ def main():
     
     if args.feedback:
         print(generate_feedback_issues(skills_dir))
+        return
+
+    if args.routing:
+        report = audit_skills(skills_dir, auto_fix=False)
+        print_routing_report(report)
+        return
+
+    if args.negative_samples:
+        report = audit_skills(skills_dir, auto_fix=False)
+        print_negative_suggestions(report)
         return
     
     # Create backup before --fix modifies files
